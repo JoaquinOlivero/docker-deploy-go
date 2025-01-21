@@ -35,7 +35,7 @@ func NewRouter() http.Handler {
 
 func UpdateContainers(w http.ResponseWriter, r *http.Request) {
 	composeFilePath := "data/docker-compose.yml"
-	projectName := "gleam"
+	projectName := os.Getenv("NAME")
 
 	options, err := cli.NewProjectOptions(
 		[]string{composeFilePath},
@@ -65,8 +65,8 @@ func UpdateContainers(w http.ResponseWriter, r *http.Request) {
 	defer apiClient.Close()
 
 	authConfig := registry.AuthConfig{
-		ServerAddress: "ghcr.io",
-		Username:      "joaquinolivero",
+		ServerAddress: os.Getenv("SERVER_ADDRESS"),
+		Username:      os.Getenv("USERNAME"),
 		Password:      os.Getenv("TOKEN"),
 	}
 	encodedJSON, err := json.Marshal(authConfig)
@@ -77,9 +77,17 @@ func UpdateContainers(w http.ResponseWriter, r *http.Request) {
 	authStr := base64.URLEncoding.EncodeToString(encodedJSON)
 
 	var i int
+
+Services:
 	for _, srv := range project.Services {
-		if srv.ContainerName == "redis-gleam-prod" {
-			continue
+		strSkipCtrs := os.Getenv("SKIP_CONTAINERS")
+
+		skipCtrs := strings.Split(strSkipCtrs, ",")
+
+		for _, v := range skipCtrs {
+			if srv.ContainerName == v {
+				continue Services
+			}
 		}
 
 		var imgID, ctrID string
@@ -111,6 +119,7 @@ func UpdateContainers(w http.ResponseWriter, r *http.Request) {
 		// pull image if the image does not exist in the system
 		// to pull the image from the private repo
 		// it's necessary to login first
+
 		// Pull image
 		out, err := apiClient.ImagePull(context.Background(), srv.Image, image.PullOptions{RegistryAuth: authStr})
 		if err != nil {
@@ -262,3 +271,13 @@ func imageIsUpToDate(rc io.ReadCloser) (bool, error) {
 
 	return false, nil
 }
+
+// func skipContainers() error {
+// 	containersStr := os.Getenv("SKIP_CONTAINERS")
+
+// 	containers := strings.Split(containersStr, ",")
+
+// 	for _, v := range containers {
+// 		fmt.Println(v)
+// 	}
+// }
